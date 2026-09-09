@@ -3,9 +3,12 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     message: str = Field(
         min_length=1,
-        max_length=4000,
-        description="The user's message",
+        description="User's support question",
     )
+
+class Citation(BaseModel):
+    document_id: int
+    chunk_id: int
 
 class ChatResponse(BaseModel):
     answer: str
@@ -13,5 +16,5 @@ class ChatResponse(BaseModel):
         ge=0.0,
         le=1.0,
     )
-    citations: list[str] = []
+    citations: list[Citation] = []
     tools_used: list[str] = []

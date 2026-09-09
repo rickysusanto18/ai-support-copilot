@@ -17,16 +17,9 @@ def chat(
     db: Session = Depends(get_db)
     ):
 
-    answer = generate_answer(
+    return generate_answer(
         db=db,
         question=request.message,
-    )
-
-    return ChatResponse(
-        answer=answer,
-        confidence=0.5,
-        citations=[],
-        tools_used=[],
     )
 
 @router.post("/documents", response_model=DocumentResponse)

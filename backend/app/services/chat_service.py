@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.ollama_client import ollama_client
 from app.llm.prompt_builder import build_rag_prompt
+from app.schemas.chat import ChatResponse, Citation
 from app.services.retrieval_service import search_documents
 
 def generate_answer(
@@ -9,7 +10,7 @@ def generate_answer(
         question: str,
         top_k: int = 5,
         min_similarity: float = 0.35,
-) -> str:
+) -> ChatResponse:
     search_response = search_documents(
         db=db,
         query=question,
@@ -22,6 +23,22 @@ def generate_answer(
         results=search_response.results,
     )
 
-    answer = ollama_client.generate(prompt)
+    llm_answer = ollama_client.generate(prompt)
 
-    return answer
+    citations = []
+
+    for result in search_response.results:
+        if result.chunk_id in llm_answer.citation_chunk_ids:
+            citations.append(
+                Citation(
+                    document_id=result.document_id,
+                    chunk_id=result.chunk_id,
+                )
+            )
+
+    return ChatResponse(
+        answer=llm_answer.answer,
+        confidence=llm_answer.confidence,
+        citations=citations,
+        tools_used=[],
+    )
