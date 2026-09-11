@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.llm.ollama_client import ollama_client
+from app.llm.ollama_client import ollama_client, LLMServiceError
 from app.llm.prompt_builder import build_rag_prompt
 from app.schemas.chat import ChatResponse, Citation
 from app.services.retrieval_service import search_documents
@@ -18,12 +18,30 @@ def generate_answer(
         min_similarity=min_similarity,
     )
 
+    # Reliability guard if chunk return 0
+    if not search_response.results:
+        return ChatResponse(
+            answer="I'm sorry. I don't have enough information to answer that question.",
+            confidence=0.0,
+            citations=[],
+            tools_used=[],
+        )
+
     prompt = build_rag_prompt(
         question=question,
         results=search_response.results,
     )
 
-    llm_answer = ollama_client.generate(prompt)
+    try:
+        llm_answer = ollama_client.generate(prompt)
+
+    except LLMServiceError:
+        return ChatResponse(
+            answer="Sorry, I'm unable to generate an answer right now. Please try again later",
+            confidence=0.0,
+            citations=[],
+            tools_used=[],
+        )
 
     citations = []
 
