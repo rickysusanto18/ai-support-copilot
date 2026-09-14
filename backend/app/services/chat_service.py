@@ -32,6 +32,11 @@ def generate_answer(
         results=search_response.results,
     )
 
+    retrieval_confidence = max(
+        result.similarity
+        for result in search_response.results
+    )
+
     try:
         llm_answer = ollama_client.generate(prompt)
 
@@ -56,7 +61,7 @@ def generate_answer(
 
     return ChatResponse(
         answer=llm_answer.answer,
-        confidence=llm_answer.confidence,
+        confidence=retrieval_confidence,
         citations=citations,
         tools_used=[],
     )
