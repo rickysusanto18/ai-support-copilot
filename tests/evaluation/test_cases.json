@@ -1,0 +1,14 @@
+[
+    {
+        "question": "Who is Ricky Susanto?",
+        "expected_behavior": "answer_from_knowledge_base"
+    },
+    {
+        "question": "What is the refund policy?",
+        "expected_behavior": "answer_from_knowledge_base"
+    },
+    {
+        "question": "How do I make sushi?",
+        "expected_behavior": "fallback"
+    }
+]
