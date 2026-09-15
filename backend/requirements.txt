@@ -6,3 +6,4 @@ pydantic-settings
 sentence-transformers
 pgvector
 httpx
+pytest

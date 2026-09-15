@@ -10,6 +10,22 @@ def load_test_cases() -> list[dict]:
     ) as file:
         return json.load(file)
 
+def evaluate_expected_behavior(
+    test_case: dict,
+    actual_has_results: bool,
+) -> bool:
+    expected_behavior = test_case["expected_behavior"]
+
+    if expected_behavior == "answer_from_knowledge_base ":
+        return actual_has_results
+
+    if expected_behavior == "fallback":
+        return not actual_has_results
+
+    raise ValueError(
+        f"Unknown expected behavior: {expected_behavior}"
+    )
+
 
 if __name__ == "__main__":
     test_cases = load_test_cases()
@@ -26,5 +42,3 @@ if __name__ == "__main__":
             f"-> "
             f"{test_case['expected_behavior']}"
         )
-
-#Note: Compare actual behavior with expected behavior later on
