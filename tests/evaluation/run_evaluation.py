@@ -1,7 +1,17 @@
 import json
+import sys
 from pathlib import Path
 
 DATASET_PATH = Path(__file__).parent / "test_cases.json"
+BACKEND_PATH = Path(__file__).parents[2] / "backend"
+
+sys.path.insert(
+    0,
+    str(BACKEND_PATH),
+)
+
+from app.db.database import SessionLocal
+from app.services.retrieval_service import search_documents
 
 def load_test_cases() -> list[dict]:
     with DATASET_PATH.open(
@@ -16,7 +26,7 @@ def evaluate_expected_behavior(
 ) -> bool:
     expected_behavior = test_case["expected_behavior"]
 
-    if expected_behavior == "answer_from_knowledge_base ":
+    if expected_behavior == "answer_from_knowledge_base":
         return actual_has_results
 
     if expected_behavior == "fallback":
@@ -26,19 +36,114 @@ def evaluate_expected_behavior(
         f"Unknown expected behavior: {expected_behavior}"
     )
 
+def evaluate_test_case(
+        test_case: dict,
+) -> dict:
+    db = SessionLocal()
+
+    try:
+        search_response = search_documents(
+            db=db,
+            query=test_case["question"],
+            top_k=5,
+            min_similarity=0.35,
+        )
+
+        actual_has_results = bool(
+            search_response.results
+        )
+
+        passed = evaluate_expected_behavior(
+            test_case=test_case,
+            actual_has_results=actual_has_results,
+        )
+
+        top_similarity = (
+            search_response.results[0].similarity
+            if search_response.results
+            else 0.0
+        )
+
+        return {
+            "question": test_case["question"],
+            "expected_behavior": test_case[
+                "expected_behavior"
+            ],
+            "actual_has_results": actual_has_results,
+            "retrieved_chunks": len(
+                search_response.results
+            ),
+            "top_similarity": top_similarity,
+            "passed": passed,
+        }
+
+    finally:
+        db.close()
+
+def print_summary(results: list[dict]) -> None:
+    total = len(results)
+
+    passed = sum(
+        1
+        for result in results
+        if result["passed"]
+    )
+
+    failed = total - passed
+
+    pass_rate = (
+        passed / total
+        if total > 0
+        else 0.0
+    )
+
+    print()
+    print("------------------")
+    print("Evaluation Summary")
+    print("------------------")
+    print(f"Total cases: {total}")
+    print(f"Passed: {passed}")
+    print(f"Failed: {failed}")
+    print(f"Pass rate: {pass_rate:.1%}")
 
 if __name__ == "__main__":
     test_cases = load_test_cases()
 
-    print(f"Loaded {len(test_cases)} evaluation cases:")
+    print(
+        f"Loaded {len(test_cases)} evaluation cases."
+    )
 
-    for index, test_case in enumerate(
-        test_cases, 
-        start=1,
-    ):
-        print(
-            f"{index}. "
-            f"{test_case['question']} "
-            f"-> "
-            f"{test_case['expected_behavior']}"
+    results = []
+
+    for test_case in test_cases:
+        result = evaluate_test_case(test_case)
+
+        results.append(result)
+
+        status = (
+            "PASS"
+            if result["passed"]
+            else "FAIL"
         )
+
+        print(
+            f"{status}: "
+            f"{result['question']}"
+        )
+
+        print(
+            f"  Expected: "
+            f"{result['expected_behavior']}"
+        )
+
+        print(
+            f"  Retrieved chunks: "
+            f"{result['retrieved_chunks']}"
+        )
+
+        print(
+            f"  Top similarity: "
+            f"{result['top_similarity']:.3f}"
+        )
+
+    print_summary(results)
