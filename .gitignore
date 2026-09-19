@@ -97,8 +97,7 @@ chroma_db/
 *.faiss
 *.index
 
-# Local model/cache directories
-models/
+# Local model cache directories
 model_cache/
 huggingface_cache/
 
