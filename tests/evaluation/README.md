@@ -14,4 +14,7 @@ The evaluation dataset will be used to measure:
 - Answer quality
 - AI system reliability
 
+To run the test, from your base directory, run:
+python tests/evaluation/run_evaluation.py
+
 Note: If you want a large dataset, it is available to download @ huggingface community 😊

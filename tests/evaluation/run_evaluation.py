@@ -5,6 +5,15 @@ from pathlib import Path
 DATASET_PATH = Path(__file__).parent / "test_cases.json"
 BACKEND_PATH = Path(__file__).parents[2] / "backend"
 
+#MIN_RETRIEVAL_SIMILARITY = threshold (ubah sesuai kebutuhan)
+#rumus: 
+# if chunk = 0 then FAIL
+# if chunk > 0: 
+#   if similarity < threshold then FAIL 
+#   if similarity >= threshold then PASS
+MIN_RETRIEVAL_SIMILARITY = 0.50
+
+
 sys.path.insert(
     0,
     str(BACKEND_PATH),
@@ -23,11 +32,15 @@ def load_test_cases() -> list[dict]:
 def evaluate_expected_behavior(
     test_case: dict,
     actual_has_results: bool,
+    top_similarity: float,
 ) -> bool:
     expected_behavior = test_case["expected_behavior"]
 
     if expected_behavior == "answer_from_knowledge_base":
-        return actual_has_results
+        return (
+            actual_has_results and 
+            top_similarity >= MIN_RETRIEVAL_SIMILARITY
+        )
 
     if expected_behavior == "fallback":
         return not actual_has_results
@@ -53,15 +66,16 @@ def evaluate_test_case(
             search_response.results
         )
 
-        passed = evaluate_expected_behavior(
-            test_case=test_case,
-            actual_has_results=actual_has_results,
-        )
-
         top_similarity = (
             search_response.results[0].similarity
             if search_response.results
             else 0.0
+        )
+
+        passed = evaluate_expected_behavior(
+            test_case=test_case,
+            actual_has_results=actual_has_results,
+            top_similarity=top_similarity,
         )
 
         return {
