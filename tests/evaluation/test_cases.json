@@ -1,14 +1,51 @@
 [
-    {
-        "question": "Who is Ricky Susanto?",
-        "expected_behavior": "answer_from_knowledge_base"
-    },
-    {
-        "question": "What is the refund policy?",
-        "expected_behavior": "answer_from_knowledge_base"
-    },
-    {
-        "question": "How do I make sushi?",
-        "expected_behavior": "fallback"
-    }
+  {
+    "id": "password_reset_direct",
+    "question": "How do I reset my password?",
+    "expected_behavior": "answer_from_knowledge_base",
+    "expected_citation": true,
+    "expected_retrieval": "strong"
+  },
+  {
+    "id": "password_reset_paraphrased",
+    "question": "I forgot my password. What steps should I follow to regain access?",
+    "expected_behavior": "answer_from_knowledge_base",
+    "expected_citation": true,
+    "expected_retrieval": "strong"
+  },
+  {
+    "id": "refund_policy_direct",
+    "question": "What is the refund policy?",
+    "expected_behavior": "answer_from_knowledge_base",
+    "expected_citation": true,
+    "expected_retrieval": "strong"
+  },
+  {
+    "id": "refund_policy_paraphrased",
+    "question": "Can I get my money back after purchasing a product?",
+    "expected_behavior": "answer_from_knowledge_base",
+    "expected_citation": true,
+    "expected_retrieval": "strong"
+  },
+  {
+    "id": "ambiguous_refund",
+    "question": "Can I cancel it and get my money back?",
+    "expected_behavior": "fallback",
+    "expected_citation": false,
+    "expected_retrieval": "weak_or_fallback"
+  },
+  {
+    "id": "unknown_topic",
+    "question": "How do I make sushi?",
+    "expected_behavior": "fallback",
+    "expected_citation": false,
+    "expected_retrieval": "none"
+  },
+  {
+    "id": "unknown_programming",
+    "question": "How do I implement a Kubernetes operator in Rust?",
+    "expected_behavior": "fallback",
+    "expected_citation": false,
+    "expected_retrieval": "none"
+  }
 ]

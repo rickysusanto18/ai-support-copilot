@@ -14,10 +14,7 @@ BACKEND_PATH = Path(__file__).parents[2] / "backend"
 MIN_RETRIEVAL_SIMILARITY = 0.50
 
 
-sys.path.insert(
-    0,
-    str(BACKEND_PATH),
-)
+sys.path.insert(0, str(BACKEND_PATH))
 
 from app.db.database import SessionLocal
 from app.services.retrieval_service import search_documents
@@ -29,24 +26,41 @@ def load_test_cases() -> list[dict]:
     ) as file:
         return json.load(file)
 
+# This function is to let the evaluation knows 3 scenarios:
+# 1. Strong: Expected: answer, Similarity >= 0.50, PASS
+# 2. Weak: Expected: fallback, Similarity < 0.50, PASS
+# 3. None: Expected: fallback, No result, PASS
 def evaluate_expected_behavior(
     test_case: dict,
     actual_has_results: bool,
     top_similarity: float,
 ) -> bool:
     expected_behavior = test_case["expected_behavior"]
+    expected_retrieval = test_case["expected_retrieval"]
 
-    if expected_behavior == "answer_from_knowledge_base":
+    if expected_retrieval == "strong":
         return (
+            expected_behavior == "answer_from_knowledge_base" and 
             actual_has_results and 
             top_similarity >= MIN_RETRIEVAL_SIMILARITY
         )
 
-    if expected_behavior == "fallback":
-        return not actual_has_results
+    if expected_retrieval == "weak_or_fallback":
+        return (
+            expected_behavior == "fallback" and (
+                not actual_has_results or 
+                top_similarity < MIN_RETRIEVAL_SIMILARITY
+            )
+        )
+
+    if expected_retrieval == "none":
+        return (
+            expected_behavior == "fallback" and 
+            not actual_has_results
+        )
 
     raise ValueError(
-        f"Unknown expected behavior: {expected_behavior}"
+        f"Unknown retrieval expectation: {expected_retrieval}"
     )
 
 def evaluate_test_case(
@@ -120,6 +134,21 @@ def print_summary(results: list[dict]) -> None:
     print(f"Failed: {failed}")
     print(f"Pass rate: {pass_rate:.1%}")
 
+
+# for CI/CD
+def validate_results(results: list[dict]) -> None:
+    failed_results = [
+        result
+        for result in results
+        if not result["passed"]
+    ]
+
+    if failed_results:
+        raise SystemExit(
+            f"{len(failed_results)} "
+            "evaluation case failed"
+        )
+
 if __name__ == "__main__":
     test_cases = load_test_cases()
 
@@ -161,3 +190,40 @@ if __name__ == "__main__":
         )
 
     print_summary(results)
+    validate_results(results)
+
+
+# Detect whether LLM really take the chunk id from the given source or not
+def evaluate_citations(
+        retrieved_chunk_ids: list[int],
+        cited_chunk_ids: list[int],
+) -> bool:
+    if not cited_chunk_ids:
+        return False
+
+    retrieved_ids = set(retrieved_chunk_ids)
+    cited_ids = set(cited_chunk_ids)
+
+    return cited_ids.issubset(retrieved_ids)
+
+# Temporary manual citation test
+# if __name__ == "__main__":
+#     print(
+#         evaluate_citations(
+#             retrieved_chunk_ids=[10, 11, 12],
+#             cited_chunk_ids=[10, 12],
+#         )
+#     )
+
+#     print(
+#         evaluate_citations(
+#             retrieved_chunk_ids=[10, 11, 12],
+#             cited_chunk_ids=[99],
+#         )
+#     )
+
+def get_retrieved_chunk_ids(search_response) -> list[int]:
+    return [
+        result.chunk_id
+        for result in search_response.results
+    ]
