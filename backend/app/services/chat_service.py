@@ -37,7 +37,7 @@ def run_rag_pipeline(
 
     retrieval_confidence = max(
         result.similarity
-        for result in search_response
+        for result in search_response.results
     )
 
     retrieved_chunk_ids = [
@@ -49,6 +49,17 @@ def run_rag_pipeline(
         result.chunk_id: result.document_id
         for result in search_response.results
     }
+
+    if retrieval_confidence < 0.50:
+        return RAGPipelineResult(
+            answer=("I don't have enough information to answer that question"),
+            retrieved_chunk_ids=retrieved_chunk_ids,
+            cited_chunk_ids=[],
+            citation_document_ids=citation_document_ids,
+            retrieval_confidence=retrieval_confidence,
+            used_fallback=True,
+            llm_failed=False,
+        )
 
     try:
         llm_answer = ollama_client.generate(prompt)

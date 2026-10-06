@@ -18,6 +18,7 @@ sys.path.insert(0, str(BACKEND_PATH))
 
 from app.db.database import SessionLocal
 from app.services.retrieval_service import search_documents
+from app.services.chat_service import run_rag_pipeline
 
 def load_test_cases() -> list[dict]:
     with DATASET_PATH.open(
@@ -63,48 +64,82 @@ def evaluate_expected_behavior(
         f"Unknown retrieval expectation: {expected_retrieval}"
     )
 
-def evaluate_test_case(
-        test_case: dict,
-) -> dict:
+# Detect whether LLM really take the chunk id from the given source or not
+def evaluate_citations(
+        retrieved_chunk_ids: list[int],
+        cited_chunk_ids: list[int],
+) -> bool:
+    if not cited_chunk_ids:
+        return False
+
+    retrieved_ids = set(retrieved_chunk_ids)
+    cited_ids = set(cited_chunk_ids)
+
+    return cited_ids.issubset(retrieved_ids)
+
+# Temporary manual citation test
+# if __name__ == "__main__":
+#     print(
+#         evaluate_citations(
+#             retrieved_chunk_ids=[10, 11, 12],
+#             cited_chunk_ids=[10, 12],
+#         )
+#     )
+
+#     print(
+#         evaluate_citations(
+#             retrieved_chunk_ids=[10, 11, 12],
+#             cited_chunk_ids=[99],
+#         )
+#     )
+
+def evaluate_rag_pipeline(db, test_case: dict) -> dict:
+    result = run_rag_pipeline(
+        db=db, 
+        question=test_case["question"],
+    )
+
+    behavior_passed = evaluate_expected_behavior(
+        test_case=test_case,
+        actual_has_results=bool(result.retrieved_chunk_ids),
+        top_similarity=result.retrieval_confidence,
+    )
+
+    citation_passed = True
+
+    if test_case["expected_citation"]:
+        citation_passed = evaluate_citations(
+            retrieved_chunk_ids=result.retrieved_chunk_ids,
+            cited_chunk_ids=result.cited_chunk_ids,
+        )
+    else:
+        citation_passed = not result.cited_chunk_ids
+
+    return {
+        "question": test_case["question"],
+        "expected_behavior": test_case["expected_behavior"],
+        "answer": result.answer,
+        "retrieved_chunks": len(
+            result.retrieved_chunk_ids
+        ),
+        "top_similarity": result.retrieval_confidence,
+        "cited_chunks": result.cited_chunk_ids,
+        "behavior_passed": behavior_passed,
+        "citation_passed": citation_passed,
+        "passed": (
+            behavior_passed
+            and citation_passed
+        ),
+    }
+
+def evaluate_test_case(test_case):
     db = SessionLocal()
 
     try:
-        search_response = search_documents(
+        return evaluate_rag_pipeline(
             db=db,
-            query=test_case["question"],
-            top_k=5,
-            min_similarity=0.35,
-        )
-
-        actual_has_results = bool(
-            search_response.results
-        )
-
-        top_similarity = (
-            search_response.results[0].similarity
-            if search_response.results
-            else 0.0
-        )
-
-        passed = evaluate_expected_behavior(
             test_case=test_case,
-            actual_has_results=actual_has_results,
-            top_similarity=top_similarity,
         )
-
-        return {
-            "question": test_case["question"],
-            "expected_behavior": test_case[
-                "expected_behavior"
-            ],
-            "actual_has_results": actual_has_results,
-            "retrieved_chunks": len(
-                search_response.results
-            ),
-            "top_similarity": top_similarity,
-            "passed": passed,
-        }
-
     finally:
         db.close()
 
@@ -170,57 +205,35 @@ if __name__ == "__main__":
         )
 
         print(
-            f"{status}: "
-            f"{result['question']}"
+            f"{status}: {result['question']}"
         )
 
         print(
-            f"  Expected: "
-            f"{result['expected_behavior']}"
+            f"  Expected: {result['expected_behavior']}"
         )
 
         print(
-            f"  Retrieved chunks: "
-            f"{result['retrieved_chunks']}"
+            f"  Retrieved chunks: {result['retrieved_chunks']}"
         )
 
         print(
-            f"  Top similarity: "
-            f"{result['top_similarity']:.3f}"
+            f"  Top similarity: {result['top_similarity']:.3f}"
+        )
+
+        print(
+            f"  Cited chunks: {result['cited_chunks']}"
+        )
+
+        print(
+            f"  Behavior: {'PASS' if result['behavior_passed'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Citations: {'PASS' if result['citation_passed'] else 'FAIL'}"
         )
 
     print_summary(results)
     validate_results(results)
-
-
-# Detect whether LLM really take the chunk id from the given source or not
-def evaluate_citations(
-        retrieved_chunk_ids: list[int],
-        cited_chunk_ids: list[int],
-) -> bool:
-    if not cited_chunk_ids:
-        return False
-
-    retrieved_ids = set(retrieved_chunk_ids)
-    cited_ids = set(cited_chunk_ids)
-
-    return cited_ids.issubset(retrieved_ids)
-
-# Temporary manual citation test
-# if __name__ == "__main__":
-#     print(
-#         evaluate_citations(
-#             retrieved_chunk_ids=[10, 11, 12],
-#             cited_chunk_ids=[10, 12],
-#         )
-#     )
-
-#     print(
-#         evaluate_citations(
-#             retrieved_chunk_ids=[10, 11, 12],
-#             cited_chunk_ids=[99],
-#         )
-#     )
 
 def get_retrieved_chunk_ids(search_response) -> list[int]:
     return [
