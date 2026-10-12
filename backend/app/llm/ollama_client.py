@@ -42,7 +42,7 @@ class OllamaClient:
 
         except (ValueError, KeyError) as exc:
             raise LLMServiceError(
-                "The LLM returned invalid response"
+                f"The LLM returned invalid response1: {exc}"
             ) from exc
 
         # Return the data and also try to validate it
@@ -51,7 +51,7 @@ class OllamaClient:
 
         except ValidationError as exc:
             raise LLMServiceError(
-                "The LLM returned invalid structured response"
+                f"The LLM returned invalid response2: {exc}"
             ) from exc
 
 ollama_client = OllamaClient()

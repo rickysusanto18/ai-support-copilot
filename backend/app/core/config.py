@@ -5,8 +5,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
 
     database_url: str = (
-        "postgresql+psycopg://"
-        "copilot:copilot@localhost:5432/copilot"
+        "postgresql+psycopg://copilot:copilot@localhost:5432/copilot"
     )
 
     model_config = SettingsConfigDict(
@@ -16,5 +15,6 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
+    retrieval_min_similarity: float = 0.50
 
 settings = Settings()

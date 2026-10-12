@@ -5,20 +5,12 @@ from pathlib import Path
 DATASET_PATH = Path(__file__).parent / "test_cases.json"
 BACKEND_PATH = Path(__file__).parents[2] / "backend"
 
-#MIN_RETRIEVAL_SIMILARITY = threshold (ubah sesuai kebutuhan)
-#rumus: 
-# if chunk = 0 then FAIL
-# if chunk > 0: 
-#   if similarity < threshold then FAIL 
-#   if similarity >= threshold then PASS
-MIN_RETRIEVAL_SIMILARITY = 0.50
-
-
 sys.path.insert(0, str(BACKEND_PATH))
 
 from app.db.database import SessionLocal
 from app.services.retrieval_service import search_documents
 from app.services.chat_service import run_rag_pipeline
+from app.core.config import settings
 
 def load_test_cases() -> list[dict]:
     with DATASET_PATH.open(
@@ -43,14 +35,14 @@ def evaluate_expected_behavior(
         return (
             expected_behavior == "answer_from_knowledge_base" and 
             actual_has_results and 
-            top_similarity >= MIN_RETRIEVAL_SIMILARITY
+            top_similarity >= settings.retrieval_min_similarity
         )
 
     if expected_retrieval == "weak_or_fallback":
         return (
             expected_behavior == "fallback" and (
                 not actual_has_results or 
-                top_similarity < MIN_RETRIEVAL_SIMILARITY
+                top_similarity < settings.retrieval_min_similarity
             )
         )
 
@@ -119,17 +111,15 @@ def evaluate_rag_pipeline(db, test_case: dict) -> dict:
         "question": test_case["question"],
         "expected_behavior": test_case["expected_behavior"],
         "answer": result.answer,
-        "retrieved_chunks": len(
-            result.retrieved_chunk_ids
-        ),
-        "top_similarity": result.retrieval_confidence,
+        "retrieved_chunks": result.metrics.retrieved_chunks,
+        "top_similarity": result.metrics.retrieval_confidence,
         "cited_chunks": result.cited_chunk_ids,
+        "used_fallback": result.metrics.used_fallback,
+        "llm_failed": result.metrics.llm_failed,
         "behavior_passed": behavior_passed,
         "citation_passed": citation_passed,
-        "passed": (
-            behavior_passed
-            and citation_passed
-        ),
+        "passed": (behavior_passed and citation_passed),
+        "fallback_reason": result.metrics.fallback_reason,
     }
 
 def evaluate_test_case(test_case):
@@ -230,6 +220,18 @@ if __name__ == "__main__":
 
         print(
             f"  Citations: {'PASS' if result['citation_passed'] else 'FAIL'}"
+        )
+
+        print(
+            f"  Fallback: {result['used_fallback']}"
+        )
+
+        print(
+            f"  LLM failed: {result['llm_failed']}"
+        )
+
+        print(
+            f"  Fallback reason: {result['fallback_reason']}"
         )
 
     print_summary(results)

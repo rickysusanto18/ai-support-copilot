@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.llm.ollama_client import ollama_client, LLMServiceError
@@ -5,21 +7,46 @@ from app.llm.prompt_builder import build_rag_prompt
 from app.schemas.chat import ChatResponse, Citation
 from app.services.retrieval_service import search_documents
 from app.schemas.rag import RAGPipelineResult
+from app.schemas.metrics import RAGMetrics
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 def run_rag_pipeline(
         db:Session,
         question: str,
         top_k: int = 5,
-        min_similarity: float = 0.35,
+        min_similarity: float | None = None,
+        request_id: str | None = None,
 ) -> RAGPipelineResult:
+    effective_min_similarity = (
+        settings.retrieval_min_similarity
+        if min_similarity is None else min_similarity
+    )
+    
     search_response = search_documents(
         db=db,
         query=question,
         top_k=top_k,
-        min_similarity=min_similarity,
+        min_similarity=effective_min_similarity,
     )
 
+    # No retrieved chunk
     if not search_response.results:
+        metrics = RAGMetrics(
+            retrieved_chunks=0,
+            retrieval_confidence=0.0,
+            cited_chunks=0,
+            used_fallback=True,
+            fallback_reason="no_relevant_context",
+            llm_failed=False,
+        )
+
+        logger.info(
+            "RAG fallback: request_id=%s reason=no_relevant_context",
+            request_id,
+        )
+
         return RAGPipelineResult(
             answer="Sorry, I don't have enough information to answer the question",
             retrieved_chunk_ids=[],
@@ -28,6 +55,7 @@ def run_rag_pipeline(
             retrieval_confidence=0.0,
             used_fallback=True,
             llm_failed=False,
+            metrics=metrics,
         )
 
     prompt = build_rag_prompt(
@@ -50,7 +78,24 @@ def run_rag_pipeline(
         for result in search_response.results
     }
 
-    if retrieval_confidence < 0.50:
+    # Low retrieval confidence
+    if retrieval_confidence < effective_min_similarity:
+        metrics = RAGMetrics(
+            retrieved_chunks=len(retrieved_chunk_ids),
+            retrieval_confidence=retrieval_confidence,
+            cited_chunks=0,
+            used_fallback=True,
+            fallback_reason="low_retrieval_confidence",
+            llm_failed=False,
+        )
+
+        logger.info(
+            "RAG fallback: request_id=%s reason=low_retrieval_confidence confidence=%.3f threshold=%.3f",
+            request_id,
+            retrieval_confidence,
+            effective_min_similarity,
+        )
+
         return RAGPipelineResult(
             answer=("I don't have enough information to answer that question"),
             retrieved_chunk_ids=retrieved_chunk_ids,
@@ -59,22 +104,56 @@ def run_rag_pipeline(
             retrieval_confidence=retrieval_confidence,
             used_fallback=True,
             llm_failed=False,
+            metrics=metrics,
         )
 
     try:
         llm_answer = ollama_client.generate(prompt)
     except LLMServiceError:
+        # LLM Failure
+        metrics = RAGMetrics(
+            retrieved_chunks=len(retrieved_chunk_ids),
+            retrieval_confidence=retrieval_confidence,
+            cited_chunks=0,
+            used_fallback=True,
+            fallback_reason="llm_failure",
+            llm_failed=True,
+        )
+
+        logger.warning(
+            "RAG fallback: request_id=%s reason=llm_failure retrieved_chunks=%d",
+            request_id,
+            len(retrieved_chunk_ids),
+        )
+
         return RAGPipelineResult(
-            answer=(
-                "Sorry, unable to generate answer now. Please try again later"
-            ),
+            answer=("Sorry, unable to generate answer now. Please try again later"),
             retrieved_chunk_ids=retrieved_chunk_ids,
             cited_chunk_ids=[],
             citation_document_ids=citation_document_ids,
             retrieval_confidence=retrieval_confidence,
             used_fallback=True,
             llm_failed=True,
+            metrics=metrics,
         )
+
+    # Successfully retrieved answer
+    metrics = RAGMetrics(
+        retrieved_chunks=len(retrieved_chunk_ids),
+        retrieval_confidence=retrieval_confidence,
+        cited_chunks=len(llm_answer.citation_chunk_ids),
+        used_fallback=False,
+        fallback_reason=None,
+        llm_failed=False,
+    )
+
+    logger.info(
+        "RAG success: request_id=%s retrieved_chunks=%d confidence=%.3f cited_chunks=%d",
+        request_id,
+        len(retrieved_chunk_ids),
+        retrieval_confidence,
+        len(llm_answer.citation_chunk_ids),
+    )
 
     return RAGPipelineResult(
         answer=llm_answer.answer,
@@ -84,19 +163,22 @@ def run_rag_pipeline(
         retrieval_confidence=retrieval_confidence,
         used_fallback=False,
         llm_failed=False,
+        metrics=metrics,
     )
 
 def generate_answer(
         db: Session,
         question: str,
         top_k: int = 5,
-        min_similarity: float = 0.35,
+        min_similarity: float | None = None,
+        request_id: str | None = None,
 ) -> ChatResponse:
     result = run_rag_pipeline(
         db=db,
         question=question,
         top_k=top_k,
         min_similarity=min_similarity,
+        request_id=request_id
     )
 
     citations = [

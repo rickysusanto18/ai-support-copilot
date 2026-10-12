@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from app.schemas.metrics import RAGMetrics
+
 class RAGPipelineResult(BaseModel):
     answer: str
     retrieved_chunk_ids: list[int]
@@ -8,3 +10,4 @@ class RAGPipelineResult(BaseModel):
     retrieval_confidence: float
     used_fallback: bool
     llm_failed: bool
+    metrics: RAGMetrics

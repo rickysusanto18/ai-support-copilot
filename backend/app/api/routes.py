@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -14,12 +14,13 @@ router = APIRouter()
 @router.post("/chat", response_model = ChatResponse)
 def chat(
     request: ChatRequest,
-    db: Session = Depends(get_db)
+    http_request: Request,
+    db: Session = Depends(get_db),
     ):
-
     return generate_answer(
         db=db,
         question=request.message,
+        request_id=http_request.state.request_id,
     )
 
 @router.post("/documents", response_model=DocumentResponse)
