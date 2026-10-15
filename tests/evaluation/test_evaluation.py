@@ -222,4 +222,10 @@ def test_rag_pipeline_falls_back_when_llm_fails():
         llm_failed=True,
     )
 
+def test_evaluate_citations_rejects_unretrieved_chunks():
+    retrieved_chunk_ids = [10, 20]
+    cited_chunk_ids = [10, 99]
+
+    assert evaluate_citations(retrieved_chunk_ids, cited_chunk_ids) is False
+
 #pytest tests/evaluation/test_evaluation.py -v

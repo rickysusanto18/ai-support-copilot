@@ -72,5 +72,23 @@ def test_chat_returns_fallback_response():
     assert response.json()["citations"] == []
     assert "X-Request-ID" in response.headers
 
+def test_chat_rejects_empty_message():
+    response = client.post(
+        "/api/v1/chat", json={"message": ""},
+    )
+
+    assert response.status_code == 422
+
+def test_chat_rejects_missing_message():
+    response = client.post("/api/v1/chat", json={})
+
+    assert response.status_code == 422
+
+def test_invalid_chat_request_never_call_rag():
+    with patch("app.api.routes.generate_answer") as mock_generate:
+        response = client.post("/api/v1/chat", json={"message": "   "})
+
+        assert response.status_code == 422
+        mock_generate.assert_not_called()
 
 # pytest tests/test_api.py -v

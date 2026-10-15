@@ -1,10 +1,21 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 class ChatRequest(BaseModel):
     message: str = Field(
         min_length=1,
+        max_length=4000,
         description="User's support question",
     )
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Message cannot be empty")
+
+        return value
 
 class Citation(BaseModel):
     document_id: int

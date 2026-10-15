@@ -138,10 +138,18 @@ def run_rag_pipeline(
         )
 
     # Successfully retrieved answer
+    retrieved_chunk_id_set = set(retrieved_chunk_ids)
+
+    validate_citation_chunk_ids = [
+        chunk_id
+        for chunk_id in llm_answer.citation_chunk_ids
+        if chunk_id in retrieved_chunk_id_set
+    ]
+
     metrics = RAGMetrics(
         retrieved_chunks=len(retrieved_chunk_ids),
         retrieval_confidence=retrieval_confidence,
-        cited_chunks=len(llm_answer.citation_chunk_ids),
+        cited_chunks=len(validate_citation_chunk_ids),
         used_fallback=False,
         fallback_reason=None,
         llm_failed=False,
@@ -158,7 +166,7 @@ def run_rag_pipeline(
     return RAGPipelineResult(
         answer=llm_answer.answer,
         retrieved_chunk_ids=retrieved_chunk_ids,
-        cited_chunk_ids=llm_answer.citation_chunk_ids,
+        cited_chunk_ids=validate_citation_chunk_ids,
         citation_document_ids=citation_document_ids,
         retrieval_confidence=retrieval_confidence,
         used_fallback=False,
