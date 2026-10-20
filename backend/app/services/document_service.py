@@ -20,12 +20,12 @@ def create_document(
     db.add(document)
     db.flush()
 
-    chunks = split_text(content)
+    chunk = split_text(content)
 
-    embeddings = embedding_service.embed_texts(chunks)
+    embeddings = embedding_service.embed_multi_text(chunk)
 
     for index, (chunk, embedding) in enumerate(
-        zip(chunks, embeddings)
+        zip(chunk, embeddings)
     ):
         document_chunk = DocumentChunk(
             document_id=document.id,

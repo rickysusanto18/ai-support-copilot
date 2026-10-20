@@ -14,8 +14,8 @@ Rules:
 5. Return ONLY valid JSON.
 6. The JSON must contain exactly these fields:
    - answer
-   - citation_chunk_ids
-7. citation_chunk_ids must contain the IDs of chunks used to answer.
+   - citation_chunk_id
+7. citation_chunk_id must contain the IDs of chunks used to answer.
 """
 
 def build_rag_prompt(

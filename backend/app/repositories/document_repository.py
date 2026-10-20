@@ -3,15 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.models.document_chunk import DocumentChunk
 
-def search_similar_chunks(
+def search_similar_chunk(
         db: Session,
         query_embedding: list[float],
         top_k: int = 5,
         min_similarity: float = 0.35,
 ) -> list[tuple[DocumentChunk, float]]:
-    distance = DocumentChunk.embedding.cosine_distance(
-        query_embedding
-    )
+    distance = DocumentChunk.embedding.cosine_distance(query_embedding)
 
     similarity = 1.0 - distance
 

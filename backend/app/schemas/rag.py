@@ -1,13 +1,13 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.metrics import RAGMetrics
 
-class RAGPipelineResult(BaseModel):
+class RAGResult(BaseModel):
     answer: str
-    retrieved_chunk_ids: list[int]
-    cited_chunk_ids: list[int]
-    citation_document_ids: dict[int, int]
-    retrieval_confidence: float
-    used_fallback: bool
-    llm_failed: bool
+    obtained_chunk_id: list[int] = Field(default_factory=list)
+    cited_chunk_id: list[int] = Field(default_factory=list)
+    citation_document_id: dict[int, int] = Field(default_factory=dict)
+    retrieval_confidence: float = 0.0
+    is_using_fallback: bool = False
+    is_llm_failed: bool = False
     metrics: RAGMetrics

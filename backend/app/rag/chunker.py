@@ -17,18 +17,18 @@ def split_text(
     if not text:
         return []
 
-    chunks = []
+    total_chunk = []
     start = 0
 
     while start < len(text):
         end = start + chunk_size
 
         chunk = text[start:end]
-        chunks.append(chunk)
+        total_chunk.append(chunk)
 
         if end >= len(text):
             break
 
         start = end - chunk_overlap
 
-    return chunks
+    return total_chunk

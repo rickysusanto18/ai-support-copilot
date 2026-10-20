@@ -16,5 +16,6 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
     retrieval_min_similarity: float = 0.50
+    transformer_model: str = "all-MiniLM-L6-v2"
 
 settings = Settings()

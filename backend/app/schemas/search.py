@@ -10,7 +10,7 @@ class SearchRequest(BaseModel):
         default=5,
         ge=1,
         le=20,
-        description="No of chunks to retrieve",
+        description="No of chunk to retrieve",
     )
 
     min_similarity: float = Field(

@@ -25,7 +25,7 @@ def load_test_cases() -> list[dict]:
 # 3. None: Expected: fallback, No result, PASS
 def evaluate_expected_behavior(
     test_case: dict,
-    actual_has_results: bool,
+    is_actual_has_result: bool,
     top_similarity: float,
 ) -> bool:
     expected_behavior = test_case["expected_behavior"]
@@ -34,14 +34,14 @@ def evaluate_expected_behavior(
     if expected_retrieval == "strong":
         return (
             expected_behavior == "answer_from_knowledge_base" and 
-            actual_has_results and 
+            is_actual_has_result and 
             top_similarity >= settings.retrieval_min_similarity
         )
 
     if expected_retrieval == "weak_or_fallback":
         return (
             expected_behavior == "fallback" and (
-                not actual_has_results or 
+                not is_actual_has_result or 
                 top_similarity < settings.retrieval_min_similarity
             )
         )
@@ -49,7 +49,7 @@ def evaluate_expected_behavior(
     if expected_retrieval == "none":
         return (
             expected_behavior == "fallback" and 
-            not actual_has_results
+            not is_actual_has_result
         )
 
     raise ValueError(
@@ -57,31 +57,31 @@ def evaluate_expected_behavior(
     )
 
 # Detect whether LLM really take the chunk id from the given source or not
-def evaluate_citations(
-        retrieved_chunk_ids: list[int],
-        cited_chunk_ids: list[int],
+def evaluate_citation(
+        retrieved_chunk_id: list[int],
+        cited_chunk_id: list[int],
 ) -> bool:
-    if not cited_chunk_ids:
+    if not cited_chunk_id:
         return False
 
-    retrieved_ids = set(retrieved_chunk_ids)
-    cited_ids = set(cited_chunk_ids)
+    retrieved_id = set(retrieved_chunk_id)
+    cited_id = set(cited_chunk_id)
 
-    return cited_ids.issubset(retrieved_ids)
+    return cited_id.issubset(retrieved_id)
 
 # Temporary manual citation test
 # if __name__ == "__main__":
 #     print(
-#         evaluate_citations(
-#             retrieved_chunk_ids=[10, 11, 12],
-#             cited_chunk_ids=[10, 12],
+#         evaluate_citation(
+#             retrieved_chunk_id=[10, 11, 12],
+#             cited_chunk_id=[10, 12],
 #         )
 #     )
 
 #     print(
-#         evaluate_citations(
-#             retrieved_chunk_ids=[10, 11, 12],
-#             cited_chunk_ids=[99],
+#         evaluate_citation(
+#             retrieved_chunk_id=[10, 11, 12],
+#             cited_chunk_id=[99],
 #         )
 #     )
 
@@ -93,29 +93,29 @@ def evaluate_rag_pipeline(db, test_case: dict) -> dict:
 
     behavior_passed = evaluate_expected_behavior(
         test_case=test_case,
-        actual_has_results=bool(result.retrieved_chunk_ids),
+        is_actual_has_result=bool(result.retrieved_chunk_id),
         top_similarity=result.retrieval_confidence,
     )
 
     citation_passed = True
 
     if test_case["expected_citation"]:
-        citation_passed = evaluate_citations(
-            retrieved_chunk_ids=result.retrieved_chunk_ids,
-            cited_chunk_ids=result.cited_chunk_ids,
+        citation_passed = evaluate_citation(
+            retrieved_chunk_id=result.retrieved_chunk_id,
+            cited_chunk_id=result.cited_chunk_id,
         )
     else:
-        citation_passed = not result.cited_chunk_ids
+        citation_passed = not result.cited_chunk_id
 
     return {
         "question": test_case["question"],
         "expected_behavior": test_case["expected_behavior"],
         "answer": result.answer,
-        "retrieved_chunks": result.metrics.retrieved_chunks,
+        "retrieved_chunk": result.metrics.retrieved_chunk,
         "top_similarity": result.metrics.retrieval_confidence,
-        "cited_chunks": result.cited_chunk_ids,
-        "used_fallback": result.metrics.used_fallback,
-        "llm_failed": result.metrics.llm_failed,
+        "cited_chunk": result.cited_chunk_id,
+        "is_used_fallback": result.metrics.is_used_fallback,
+        "is_llm_failed": result.metrics.is_llm_failed,
         "behavior_passed": behavior_passed,
         "citation_passed": citation_passed,
         "passed": (behavior_passed and citation_passed),
@@ -203,7 +203,7 @@ if __name__ == "__main__":
         )
 
         print(
-            f"  Retrieved chunks: {result['retrieved_chunks']}"
+            f"  Retrieved chunk: {result['retrieved_chunk']}"
         )
 
         print(
@@ -211,7 +211,7 @@ if __name__ == "__main__":
         )
 
         print(
-            f"  Cited chunks: {result['cited_chunks']}"
+            f"  Cited chunk: {result['cited_chunk']}"
         )
 
         print(
@@ -223,11 +223,11 @@ if __name__ == "__main__":
         )
 
         print(
-            f"  Fallback: {result['used_fallback']}"
+            f"  Fallback: {result['is_used_fallback']}"
         )
 
         print(
-            f"  LLM failed: {result['llm_failed']}"
+            f"  LLM failed: {result['is_llm_failed']}"
         )
 
         print(
@@ -237,7 +237,7 @@ if __name__ == "__main__":
     print_summary(results)
     validate_results(results)
 
-def get_retrieved_chunk_ids(search_response) -> list[int]:
+def get_retrieved_chunk_id(search_response) -> list[int]:
     return [
         result.chunk_id
         for result in search_response.results

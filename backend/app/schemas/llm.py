@@ -5,4 +5,4 @@ class LLMAnswer(BaseModel):
         min_length=1,
     )
 
-    citation_chunk_ids: list[int]
+    citation_chunk_id: list[int]

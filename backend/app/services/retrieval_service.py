@@ -1,7 +1,7 @@
 from sqlalchemy.orm import session
 
 from app.rag.embeddings import embedding_service
-from app.repositories.document_repository import search_similar_chunks
+from app.repositories.document_repository import search_similar_chunk
 from app.schemas.search import SearchResponse, SearchResult
 
 def search_documents(
@@ -12,7 +12,7 @@ def search_documents(
 ) -> SearchResponse:
     query_embedding = embedding_service.embed_text(query)
 
-    results = search_similar_chunks(
+    results = search_similar_chunk(
         db=db,
         query_embedding=query_embedding,
         top_k=top_k,

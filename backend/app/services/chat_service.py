@@ -6,7 +6,7 @@ from app.llm.ollama_client import ollama_client, LLMServiceError
 from app.llm.prompt_builder import build_rag_prompt
 from app.schemas.chat import ChatResponse, Citation
 from app.services.retrieval_service import search_documents
-from app.schemas.rag import RAGPipelineResult
+from app.schemas.rag import RAGResult
 from app.schemas.metrics import RAGMetrics
 from app.core.config import settings
 
@@ -18,43 +18,32 @@ def run_rag_pipeline(
         top_k: int = 5,
         min_similarity: float | None = None,
         request_id: str | None = None,
-) -> RAGPipelineResult:
-    effective_min_similarity = (
-        settings.retrieval_min_similarity
-        if min_similarity is None else min_similarity
-    )
+) -> RAGResult:
+    min_sim = min_similarity if min_similarity is not None else settings.retrieval_min_similarity
     
     search_response = search_documents(
         db=db,
         query=question,
         top_k=top_k,
-        min_similarity=effective_min_similarity,
+        min_similarity=min_sim,
     )
 
-    # No retrieved chunk
+    # Case 1: No retrieved chunk
     if not search_response.results:
         metrics = RAGMetrics(
-            retrieved_chunks=0,
+            retrieved_chunk=0,
             retrieval_confidence=0.0,
-            cited_chunks=0,
-            used_fallback=True,
+            cited_chunk=0,
+            is_used_fallback=True,
             fallback_reason="no_relevant_context",
-            llm_failed=False,
+            is_llm_failed=False,
         )
 
-        logger.info(
-            "RAG fallback: request_id=%s reason=no_relevant_context",
-            request_id,
-        )
+        logger.info("RAG fallback: request_id=%s reason=no_relevant_context", request_id)
 
-        return RAGPipelineResult(
-            answer="Sorry, I don't have enough information to answer the question",
-            retrieved_chunk_ids=[],
-            cited_chunk_ids=[],
-            citation_document_ids={},
-            retrieval_confidence=0.0,
-            used_fallback=True,
-            llm_failed=False,
+        return RAGResult(
+            answer="I don't have enough information to answer the question",
+            is_using_fallback=True,
             metrics=metrics,
         )
 
@@ -68,109 +57,104 @@ def run_rag_pipeline(
         for result in search_response.results
     )
 
-    retrieved_chunk_ids = [
+    retrieved_chunk_id = [
         result.chunk_id
         for result in search_response.results
     ]
 
-    citation_document_ids = {
+    citation_document_id = {
         result.chunk_id: result.document_id
         for result in search_response.results
     }
 
-    # Low retrieval confidence
-    if retrieval_confidence < effective_min_similarity:
+    # Case 2: Low retrieval confidence
+    if retrieval_confidence < min_sim:
         metrics = RAGMetrics(
-            retrieved_chunks=len(retrieved_chunk_ids),
+            retrieved_chunk=len(retrieved_chunk_id),
             retrieval_confidence=retrieval_confidence,
-            cited_chunks=0,
-            used_fallback=True,
+            cited_chunk=0,
+            is_used_fallback=True,
             fallback_reason="low_retrieval_confidence",
-            llm_failed=False,
+            is_llm_failed=False,
         )
 
         logger.info(
             "RAG fallback: request_id=%s reason=low_retrieval_confidence confidence=%.3f threshold=%.3f",
             request_id,
             retrieval_confidence,
-            effective_min_similarity,
+            min_sim,
         )
 
-        return RAGPipelineResult(
+        return RAGResult(
             answer=("I don't have enough information to answer that question"),
-            retrieved_chunk_ids=retrieved_chunk_ids,
-            cited_chunk_ids=[],
-            citation_document_ids=citation_document_ids,
-            retrieval_confidence=retrieval_confidence,
-            used_fallback=True,
-            llm_failed=False,
+            obtained_chunk_id=retrieved_chunk_id,
+            citation_document_id=citation_document_id,
+            obtain_confidence=retrieval_confidence,
+            is_using_fallback=True,
             metrics=metrics,
         )
 
     try:
         llm_answer = ollama_client.generate(prompt)
     except LLMServiceError:
-        # LLM Failure
+        # Case 3: LLM Failure
         metrics = RAGMetrics(
-            retrieved_chunks=len(retrieved_chunk_ids),
+            retrieved_chunk=len(retrieved_chunk_id),
             retrieval_confidence=retrieval_confidence,
-            cited_chunks=0,
-            used_fallback=True,
+            cited_chunk=0,
+            is_used_fallback=True,
             fallback_reason="llm_failure",
-            llm_failed=True,
+            is_llm_failed=True,
         )
 
         logger.warning(
-            "RAG fallback: request_id=%s reason=llm_failure retrieved_chunks=%d",
+            "RAG fallback: request_id=%s reason=llm_failure retrieved_chunk=%d",
             request_id,
-            len(retrieved_chunk_ids),
+            len(retrieved_chunk_id),
         )
 
-        return RAGPipelineResult(
-            answer=("Sorry, unable to generate answer now. Please try again later"),
-            retrieved_chunk_ids=retrieved_chunk_ids,
-            cited_chunk_ids=[],
-            citation_document_ids=citation_document_ids,
-            retrieval_confidence=retrieval_confidence,
-            used_fallback=True,
-            llm_failed=True,
+        return RAGResult(
+            answer=("Unable to generate answer now. Please try again later"),
+            obtained_chunk_id=retrieved_chunk_id,
+            citation_document_id=citation_document_id,
+            obtain_confidence=retrieval_confidence,
+            is_using_fallback=True,
+            is_llm_failed=True,
             metrics=metrics,
         )
 
-    # Successfully retrieved answer
-    retrieved_chunk_id_set = set(retrieved_chunk_ids)
+    # Case 4: Successfully retrieved answer
+    retrieved_chunk_id_set = set(retrieved_chunk_id)
 
-    validate_citation_chunk_ids = [
+    validate_citation_chunk_id = [
         chunk_id
-        for chunk_id in llm_answer.citation_chunk_ids
+        for chunk_id in llm_answer.citation_chunk_id
         if chunk_id in retrieved_chunk_id_set
     ]
 
     metrics = RAGMetrics(
-        retrieved_chunks=len(retrieved_chunk_ids),
+        retrieved_chunk=len(retrieved_chunk_id),
         retrieval_confidence=retrieval_confidence,
-        cited_chunks=len(validate_citation_chunk_ids),
-        used_fallback=False,
+        cited_chunk=len(validate_citation_chunk_id),
+        is_used_fallback=False,
         fallback_reason=None,
-        llm_failed=False,
+        is_llm_failed=False,
     )
 
     logger.info(
-        "RAG success: request_id=%s retrieved_chunks=%d confidence=%.3f cited_chunks=%d",
+        "RAG success: request_id=%s retrieved_chunk=%d confidence=%.3f cited_chunk=%d",
         request_id,
-        len(retrieved_chunk_ids),
+        len(retrieved_chunk_id),
         retrieval_confidence,
-        len(llm_answer.citation_chunk_ids),
+        len(llm_answer.citation_chunk_id),
     )
 
-    return RAGPipelineResult(
+    return RAGResult(
         answer=llm_answer.answer,
-        retrieved_chunk_ids=retrieved_chunk_ids,
-        cited_chunk_ids=validate_citation_chunk_ids,
-        citation_document_ids=citation_document_ids,
-        retrieval_confidence=retrieval_confidence,
-        used_fallback=False,
-        llm_failed=False,
+        obtained_chunk_id=retrieved_chunk_id,
+        cited_chunk_id=validate_citation_chunk_id,
+        citation_document_id=citation_document_id,
+        obtain_confidence=retrieval_confidence,
         metrics=metrics,
     )
 
@@ -191,11 +175,11 @@ def generate_answer(
 
     citations = [
         Citation(
-            document_id=result.citation_document_ids[chunk_id],
+            document_id=result.citation_document_id[chunk_id],
             chunk_id=chunk_id,
         )
-        for chunk_id in result.cited_chunk_ids
-        if chunk_id in result.citation_document_ids
+        for chunk_id in result.cited_chunk_id
+        if chunk_id in result.citation_document_id
     ]
 
 
@@ -203,7 +187,7 @@ def generate_answer(
         answer=result.answer,
         confidence=(
             result.retrieval_confidence
-            if not result.llm_failed
+            if not result.is_llm_failed
             else 0.0
         ),
         citations=citations,

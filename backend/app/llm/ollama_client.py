@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.schemas.llm import LLMAnswer
 
 class LLMServiceError(Exception):
-    """Raised when the LLM service cannot produce a valid response."""
+    """Raised when the LLM service cannot produce a valid response"""
 
 class OllamaClient:
     def __init__(self) -> None:
@@ -30,11 +30,8 @@ class OllamaClient:
             response.raise_for_status()
 
         except httpx.HTTPError as exc:
-            raise LLMServiceError(
-                "The LLM Service is unavailable"
-            ) from exc
+            raise LLMServiceError("Unavailable LLM Service") from exc
 
-        # Data Extraction to JSON
         try:
             data = response.json()
             raw_response = data["response"]
@@ -42,7 +39,7 @@ class OllamaClient:
 
         except (ValueError, KeyError) as exc:
             raise LLMServiceError(
-                f"The LLM returned invalid response1: {exc}"
+                f"The LLM returned invalid response 1: {exc}"
             ) from exc
 
         # Return the data and also try to validate it
@@ -51,7 +48,7 @@ class OllamaClient:
 
         except ValidationError as exc:
             raise LLMServiceError(
-                f"The LLM returned invalid response2: {exc}"
+                f"The LLM returned invalid response 2: {exc}"
             ) from exc
 
 ollama_client = OllamaClient()
