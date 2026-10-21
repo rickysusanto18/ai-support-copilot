@@ -209,7 +209,7 @@ def test_rag_pipeline_falls_back_when_llm_fails():
         fake_db = MagicMock()
         result = run_rag_pipeline(db=fake_db, question="How do I reset my password?")
 
-    assert result.is_used_fallback is True
+    assert result.is_using_fallback is True
     assert result.is_llm_failed is True
     assert result.cited_chunk_id == []
 
