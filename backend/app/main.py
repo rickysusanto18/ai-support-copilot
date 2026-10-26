@@ -63,8 +63,9 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.add_middleware(RequestIDMiddleware)
+
 app.add_middleware(
-    RequestIDMiddleware,
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
     allow_credentials=False,
